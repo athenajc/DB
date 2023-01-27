@@ -4,10 +4,11 @@ import sys
 import tkinter as tk
 from tkinter import ttk
 import aui
-from aui import App, twoframe, add_textobj, add_msg, TreeView
-from aui import ImageObj, Text
+from aui import App, aFrame 
+from aui import ImageObj, Text, Layout, Panel
 from fileio import get_path, realpath, fread, fwrite
 from graphviz import Source
+import DB
 
 class Canvas(tk.Canvas):
     def __init__(self, master, **kw):
@@ -31,55 +32,65 @@ class Editor(Text):
         self.init_dark_config()
         self.tag_config('find', foreground='black', background='#999')
 
-def set_layout(master):
-    frame1 = twoframe(master, style='top', sep=0.2)   # menubar, mainframe
-    frame2 = twoframe(frame1.bottom, style='h', sep=0.2)  #LR tree -> top bottom
-    frame3 = twoframe(frame2.right, style='v', sep=0.7)   #editor + msg
-    frame4 = twoframe(frame3.top, style='h', sep=0.4)
-    msg = add_msg(frame3.bottom)
-    master.msg = msg
-    sys.stdout = msg         
-    return frame1, frame2, frame3, frame4, msg  
     
-    
-def dctview(dct=None):
-    app = App('TreeView Editor', size=(1200, 900)) 
-    frame1, frame2, frame3, frame4, msg = set_layout(app)
-    
-    editor = Editor(frame4.left)
-    editor.open('/home/athena/tmp/Digraph.gv')
-    canvas = Canvas(frame4.right)
-    canvas.pack(fill='both', expand=True)
-    #canvas.open('/home/athena/tmp/Source.gv.svg')
-    tree = TreeView(frame2.left)
-    tree.enable_edit()
-    
-    def save_text():
+class GraphEdit():
+    def __init__(self, app):
+        w, h = app.size
+        self.size = (w, h)
+        self.tk = app.tk
+        self.init_ui(app)  
+        self.add_cmd_buttons()      
+        self.editor.open('/home/athena/tmp/Digraph.gv')
+        self.update_graph() 
+        
+    def add_cmd_buttons(self):
+        tree = self.tree
+        buttons = [('Reset', tree.clear), 
+               ('New', lambda event=None: tree.add_dct('', dct)),  
+               ('Add', tree.new_node),  
+               ('Save', self.save_text),  
+                ('Update Graph', self.update_graph)              
+               ]
+        for cmd, act in buttons:
+            self.panel.add_button(cmd, act)
+        
+    def add_editor(self, master):    
+        frame = master.twoframe(master, style='h', sep=0.5)               
+        f0 = self.editor = Editor(frame.left)
+        f1 = self.canvas = Canvas(frame.right)
+        f0.pack(fill='both', expand=True)
+        f1.pack(fill='both', expand=True)
+        return frame
+        
+    def init_ui(self, app):
+        layout = Layout(app)
+        self.panel = Panel(app)
+        layout.add_top(self.panel, 50)
+        f0 = self.add_editor(app)
+        f1 = self.msg = layout.add_msg(app)    
+        tree = self.tree = layout.add_tree(app)
+        tree.enable_edit()
+        layout.add_set1(objs=(tree, f0, f1), seph=0.2, sepv=0.7 )
+        return f0, f1, tree    
+        
+    def save_text(self, event=None):
+        editor = self.editor
         text = editor.get_text()
         fwrite(editor.filename, text)
         msg.puts('save', editor.filename, 'ok')
         
-    def update_graph():
+    def update_graph(self, event=None):
+        editor = self.editor
         text = editor.get_text()
         fwrite(editor.filename, text)
         dot = Source(editor.get_text())        
         fn = dot.render(format='svg')        
-        canvas.open(fn)
-        
-        
-    update_graph()
-    if dct == None:
-        dct = {'a':123, 'b':['ab', 'cd', 'ef', {1:'test', 2:'pratice', 3:'operation'}]}
-    tree.add_dct('', dct)
-          
-    buttons = [('Reset', tree.clear), 
-               ('New', lambda event=None: tree.add_dct('', dct)),  
-               ('Add', tree.new_node),  
-               ('Save', save_text),  
-                ('Update Graph', update_graph)              
-               ]
-    for cmd, act in buttons:
-        app.add_button(frame1.top, cmd, act, side='left')
+        self.canvas.open(fn)
+       
+    
+def dctview(dct=None):
+    app = App('Graph Editor', size=(1200, 900))                
+    GraphEdit(app)
     app.mainloop() 
 
     
