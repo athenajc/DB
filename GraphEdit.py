@@ -54,23 +54,16 @@ class GraphEdit():
         for cmd, act in buttons:
             self.panel.add_button(cmd, act)
         
-    def add_editor(self, master):    
-        frame = master.twoframe(master, style='h', sep=0.5)               
-        f0 = self.editor = Editor(frame.left)
-        f1 = self.canvas = Canvas(frame.right)
-        f0.pack(fill='both', expand=True)
-        f1.pack(fill='both', expand=True)
-        return frame
-        
     def init_ui(self, app):
         layout = Layout(app)
         self.panel = Panel(app)
         layout.add_top(self.panel, 50)
-        f0 = self.add_editor(app)
-        f1 = self.msg = layout.add_msg(app)    
+        f0 = self.editor = Editor(app)
+        f1 = self.canvas = Canvas(app)
+        msg = self.msg = layout.add_msg(app)    
         tree = self.tree = layout.add_tree(app)
         tree.enable_edit()
-        layout.add_set1(objs=(tree, f0, f1), seph=0.2, sepv=0.7 )
+        layout.add_set2(objs=(tree, f0, f1, msg))
         return f0, f1, tree    
         
     def save_text(self, event=None):
