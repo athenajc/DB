@@ -6,7 +6,7 @@ import time
 import tkinter as tk
 import DB
 import aui
-from aui import  App, aFrame, Text, Notebook, Panel, MenuBar
+from aui import  App, aFrame, Text, Notebook, Panel, MenuBar, Layout
 from random import Random
 from pprint import pformat
 
@@ -16,6 +16,12 @@ def check_textlen(text, n):
             return True
     return False
     
+def test_text(app, text):
+    filename = '/home/athena/tmp/tmp.py'
+    from fileio import fwrite
+    fwrite(filename, text)
+    from aui import RunServer    
+    app.server = RunServer(app, filename)  
 
     
 class Editor(tk.Frame):
@@ -23,16 +29,22 @@ class Editor(tk.Frame):
         super().__init__(master, **kw)
         self.config(padx=10)
         self.tree_item = None
-        frame = aui.add_top(master, sep=0.17)
-        frame.top.config(padx = 10, pady=5, bg='#232323')  
-        self.add_entry(frame.top)
-        
-        self.text = Text(frame.bottom)
+        frame = tk.Frame(self)
+        frame.config(padx = 10, pady=5, bg='#232323')  
+        self.add(frame)
+        self.add_entry(frame)
+
+        self.text = Text(self, width=120)
         self.text.init_dark_config()
+        #self.add(self.text)
+        self.text.pack(fill='both', expand=True)
         self.tag_config = self.text.tag_config
         self.table = None
         self.db_key = 'temp'        
         self.text.add_menu_cmd('Set Nane', self.on_setname)   
+        
+    def add(self, obj):
+        obj.pack(fill='x')
         
     def reset(self):
         self.tree_item = None
@@ -41,10 +53,11 @@ class Editor(tk.Frame):
         
     def add_entry(self, frame):
         frame.config(padx = 10, pady=5, bg='#232323') 
-        entry = aui.add_entry(frame, label='Title Name: ')
-        entry.add_button('commit', self.on_commit)       
+        entry = aui.add_entry(frame, label='Title Name: ', width=70)
+        entry.add_button('commit', self.on_commit)               
         entry.set('test')
         self.entry = entry
+        entry.add_button('test', self.on_test_cmd)
             
     def set_text(self, text):
         text = text.strip()
@@ -111,18 +124,24 @@ class Editor(tk.Frame):
         self.master.setvar('<<RenameItem>>', (self.tree_item, newkey))
         self.master.event_generate('<<RenameItem>>')  
         
-
+    def on_test_cmd(self, arg):        
+        text = self.text.get_text()  
+        self.puts = self.msg.puts    
+        test_text(self, text)
+        
+        
 class HeadPanel():
-    def __init__(self, frame):
-        self.app = frame.app
+    def __init__(self, app):
+        self.app = app
+        frame = app.top
         self.bg = frame.cget('bg')
         self.font = ('Mono', 15)
         self.bold = ('Mono', 15, 'bold')
-        pn = Panel(frame, height=1)
+        pn = Panel(frame )
         self.tabs = self.add_db_buttons(pn) 
         self.textvar = self.add_textlabel(pn)                
         self.buttons = self.add_buttons2(pn)        
-        pn.pack(fill='x', side='top') 
+        pn.pack(fill='both', expand=True, side='top') 
 
     def add_buttons2(self, pn): 
         app = self.app 
@@ -130,7 +149,7 @@ class HeadPanel():
                ('Delete', app.on_delete_item), 
                ('-', 5),
                ('Copy', app.on_copy),
-               ('Import', app.on_import),
+               ('Import', app.on_import),        
                ]  
         buttons = pn.add_buttons(lst)     
         return buttons
@@ -179,6 +198,7 @@ class SelectDB():
 class CodeFrame(aFrame, SelectDB):     
     def __init__(self, master, name='code'):       
         super().__init__(master)
+        self.size = master.size
         self.app = self
         icon = '/home/athena/data/icon/view.png'
         self.set_icon(icon)
@@ -194,7 +214,7 @@ class CodeFrame(aFrame, SelectDB):
         self.vars = {'history':[]}
         self.data = []
         self.tree_item = ''
-        self.panel = HeadPanel(self)   
+         
         self.init_ui()      
         self.panel.set_db(name)
         if tables != None and len(tables) > 1: 
@@ -218,12 +238,6 @@ class CodeFrame(aFrame, SelectDB):
         self.buttons = btns
         for b in btns:
             b.config(width=7, relief='flat')
-        
-    def add_table_menu(self, frame):        
-        self.menubar = Panel(frame, style='v', size=(100, 1080)) 
-        self.menubar.pack(side='top', fill='x', expand=False)
-        self.set_table_menu()
-        return self.menubar
     
     def update_all(self):
         self.item_names = names = self.table.getnames()        
@@ -257,10 +271,6 @@ class CodeFrame(aFrame, SelectDB):
     def on_new_item(self, event=None):
         self.editor.new_item()
         self.tree_item = ''
-        #self.tree.add_node('', name)
-        #self.table.adddata(name, '')
-        #item = self.tree.focus()
-        #self.update_item(name, item)
         
     def on_import(self, event=None):
         files = aui.askopenfiles(ext='py')
@@ -284,9 +294,6 @@ class CodeFrame(aFrame, SelectDB):
         self.table.insert_data(name, text)    
         self.item_names = self.table.get('names')
         self.tree.set_list(self.item_names)
-        #else:
-        #    self.tree_item = self.tree.focus()
-        #    self.tree.set_node_data(self.tree_item, name)
         
     def on_copy(self, event=None):
         self.clipboard_clear()
@@ -331,36 +338,27 @@ class CodeFrame(aFrame, SelectDB):
         item, newkey = p
         self.msg.puts('rename', self.tree.item(item))
         self.tree.set_node_data(item, newkey)     
-                       
-    def add_table_tree(self, frame1):
-        frame = self.twoframe(frame1, style='left', sep=0.25)   
-        self.trees = {}
-        self.menubar = self.add_table_menu(frame.left)
-        self.tree = tree = self.add_tree(frame.right)
+        
+    def init_ui(self):
+        layout = Layout(self)
+        self.left = tk.Frame(self)
+        layout.add_left(self.left, 100)
+        
+        self.top = tk.Frame(self)
+        layout.add_top(self.top, 52)         
+        
+        self.panel = HeadPanel(self)  
+        editor = self.editor = Editor(self)          
+        msg = self.msg = self.add_msg(self)    
+        tree = self.tree = self.add_tree(self)
+        layout.add_set1(objs=(tree, editor, msg), seph=0.25)
         tree.click_select = 'click'   
         tree.msg = self.msg
         tree.bind('<ButtonRelease-1>', self.on_select) 
-        
-    def add_textmsg(self, master):     
-        frameTB = self.twoframe(master, style='v', sep=0.7)          
-        editor = Editor(frameTB.top)        
-        self.editor = editor
-        textbox = self.editor.text
-        msg = self.add_msg(frameTB.bottom)
-        textbox.msg = msg
-        msg.textbox = textbox
-        root = master.winfo_toplevel()
-        root.msg = msg
-        root.textbox = textbox
-        self.msg = msg
-        self.textbox = textbox 
-        self.editor.msg = msg
-    
-    def init_ui(self):     
-        frameLR = self.twoframe(self, style='h', sep=0.335)           
-        self.add_textmsg(frameLR.right)               
-        self.add_table_tree(frameLR.left)       
-        self.editor.tree = self.tree      
+        editor.msg = msg
+        msg.textbox = editor.text
+        self.menubar = Panel(self.left, style='v', size=(100, 1080)) 
+        self.menubar.pack(side='top', fill='x', expand=False)                
         self.set_table_menu()
          
        
@@ -375,10 +373,12 @@ def run(name):
         name = sys.argv[1] 
     
     app = App('Sample SQL Editor', size=(1300, 900))    
-    app.run(CodeFrame, name)   
+    frame = CodeFrame(app, name)
+    frame.pack(fill='both', expand=True)
+    app.mainloop()   
             
 if __name__ == '__main__':   
-    run('note')
+    run('code')
 
         
     

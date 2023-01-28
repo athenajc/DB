@@ -152,11 +152,13 @@ class Table():
         self.delete_key(key)
         self.insert_data(key, data) 
         
-    def getdata(self, key=None):
+    def getdata(self, key=None, default=None):
         if key == None:
             return self.getall()
         lst = self.db.fetchall(f"SELECT data FROM {self.name} WHERE name=\"{key}\"")
         if lst == [] or lst == None:
+            if default != None:
+                return default
             return str(lst)
         return str(flatten(lst)[0])     
         
