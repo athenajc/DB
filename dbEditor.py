@@ -341,11 +341,11 @@ class CodeFrame(aFrame, SelectDB):
         
     def init_ui(self):
         layout = Layout(self)
+        self.top = tk.Frame(self)
+        layout.add_top(self.top, 52)  
+        
         self.left = tk.Frame(self)
         layout.add_left(self.left, 100)
-        
-        self.top = tk.Frame(self)
-        layout.add_top(self.top, 52)         
         
         self.panel = HeadPanel(self)  
         editor = self.editor = Editor(self)          
@@ -379,6 +379,7 @@ def run(name):
             
 if __name__ == '__main__':   
     run('code')
+    #test()
 
         
     
