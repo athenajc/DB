@@ -47,7 +47,7 @@ class Editor(tk.Frame):
         obj.pack(fill='x')
         
     def reset(self):
-        self.tree_item = None
+        self.tree_item = ''
         self.entry.set('')
         self.text.set_text('')
         
@@ -127,6 +127,7 @@ class Editor(tk.Frame):
     def on_test_cmd(self, arg):        
         text = self.text.get_text()  
         self.puts = self.msg.puts    
+        self.msg.clear_all()
         test_text(self, text)
         
         
@@ -297,7 +298,7 @@ class CodeFrame(aFrame, SelectDB):
         
     def on_copy(self, event=None):
         self.clipboard_clear()
-        text = self.textbox.get_text()
+        text = self.editor.text.get_text()
         self.clipboard_append(text)   
         
     def on_save(self, event=None):
