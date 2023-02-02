@@ -285,9 +285,11 @@ class CodeFrame(aFrame, SelectDB):
         
     def on_commit(self, event=None):              
         name, text = self.editor.get_data()    
-        
-        if self.tree_item != '':
+        try:
             prename = self.tree.get_text(self.tree_item)  
+        except:
+            prename = ''   
+        if prename != '':
             self.table.delete_key(prename)
             self.msg.puts('on_commit', [prename, name])
         else:
