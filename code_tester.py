@@ -9,10 +9,11 @@ from pygments.lexers import Python3Lexer
 from pygments.formatters import HtmlFormatter
 import DB
 import re
-from aui import Text, Panel
-from ui import *
-import importlib
+from aui import Text, Panel, App
+from aui import TextObj 
+
 import nx, plt
+from pprint import pprint
 
 dct = {}
 dct['global'] = globals()
@@ -23,8 +24,26 @@ def invalid_cmd(s):
     if s0 == '' or s0[0] == '#':
         return False
     return True      
+    
+        
+class MsgBox(TextObj):
+    def __init__(self, master, **kw):
+        super().__init__(master, scroll=False, fill=False, **kw)
+        pass
+        
+    def update_tag(self):
+        pass
+        
+    def flush(self, text=''):
+        return
+        
+    def write(self, text):
+        if text.strip() == '':
+            return
+        self.insert('insert', str(text))
+        
 
-class TextBox(tk.Frame):
+class TextBox(Panel):
     def __init__(self, tester, name, data, **kw):
         super().__init__(tester.panel, **kw)    
         self.name = name   
@@ -33,17 +52,19 @@ class TextBox(tk.Frame):
         self.lexer = Python3Lexer()
         self.g_vars = dct['global']
         self.l_vars = dct['local']      
-        self.config(border=1, padx=10, pady=5)
+        self.config(border=1, padx=5, pady=5)
         self.pack()        
-        self.textbox = Text(self, scroll=False, fill=False, width=100, height=3)
-        self.textbox.init_dark_config()        
-        self.textbox.pack(side='top',)
+        self.textbox = textbox = Text(self, scroll=False, fill=False, width=100, height=3)
+        textbox.init_dark_config()    
+        textbox.config(highlightthickness=0, relief='flat')    
+       
+        textbox.pack(side='top')
         
-        self.msg = MsgBox(self, width=85, height=1)
-        self.msg.pack(side='left', expand=True)     
-        self.textbox.msg = self.msg   
-        button = tk.Button(self, text='Run', command=self.on_exec_cmd, width=10)
-        button.pack(side='right', expand=True)
+        self.msg = MsgBox(self, width=88, height=2)
+        self.msg.pack(side='left', expand=True, padx=5)     
+        textbox.msg = self.msg   
+        button = tk.Button(self, text='Run', command=self.on_exec_cmd, width=7, font=(13))
+        button.pack(side='right', expand=True, padx=10)
         self.set_data(data)
         
     def set_data(self, data):          
@@ -88,7 +109,10 @@ class TextBox(tk.Frame):
                 continue                
             else:
                 self.eval_print(s)    
-        self.msg.puts('>>>')
+        if self.msg.get_text() != '':        
+            self.msg.puts('\n')
+        else:
+            self.msg.puts('>>>')
         n = self.msg.get_text().count('\n')        
         n = min(20, n)            
         self.msg.config(height=n+1)
@@ -126,7 +150,7 @@ class TextBox(tk.Frame):
         else:
             self.try_exec(s, g_vars, l_vars)               
             
-
+        
 class Tester():
     def __init__(self, app):     
         self.app = app    
@@ -138,12 +162,12 @@ class Tester():
         self.items = self.table.get('names')
         self.add_name_entry()
         
-        panel = CodePanel(app)
+        panel = Panel(app)
         panel.add_scrollbar()   
         panel.pack(side='top', expand=True, fill='both')
+        panel.config(bg='#323c44')
         self.panel = panel
-        self.set_table(self.name)
-            
+        self.set_table(self.name)            
         self.add_new_button ()
             
     
