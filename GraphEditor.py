@@ -152,6 +152,7 @@ class Obj():
         self.tag = tag
         self.data = kw
         self.box = box
+        self.modified = False
         self.size = 100, 50
         for item in self.data:
             self.__setattr__(item, self.data[item])
@@ -168,7 +169,15 @@ class Obj():
         if box == None:
             return
         x1, y1, x2, y2 = box  
-        self.pos = (x1, y1)       
+        self.pos = (x1, y1)  
+        self.box = box  
+        return box
+        
+    def get_center(self):
+        x1, y1, x2, y2 = self.box  
+        x = (x1 + x2)/2
+        y = (y1 + y2)/2
+        return (x, y)
         
     def set_color(self, color):    
         self.data['color'] = color
@@ -194,18 +203,18 @@ class SelectFrame():
         self.pos = 0, 0
         self.dragging = False
         
-    def set_rect(self, pos, size):
+    def set_rect(self, box):
         canvas = self.canvas
-        x, y = pos[0:2]    
-        w, h = size        
-        x1, y1 = x+w, y+h
-        x2, y2 = x+w/2, y+h/2
+        x1, y1, x2, y2 = box
+        x, y = x1, y1 #pos[0:2]    
+        w, h = x2-x1, y2-y1        
+        #x1, y1 = x+w, y+h
+        #x2, y2 = x+w/2, y+h/2
         canvas.delete('selectframe')
-        self.item = self.canvas.create_rectangle(x, y, x1, y1, dash=(3,3), tag=('selectframe','fg'))  
+        self.item = self.canvas.create_rectangle(x1, y1, x2, y2, dash=(3,3), tag=('selectframe','fg'))  
         d = 3 
-        canvas.create_rectangle(x1-d, y1-d, x1+d, y1+d, fill='#444', tag=('selectframe', 'dot'))
-        self.size = w, h
-        self.pos = x, y
+        canvas.create_rectangle(x2-d, y2-d, x2+d, y2+d, fill='#444', tag=('selectframe', 'dot'))
+        self.box = box
         self.offset = w/2, h/2
         #canvas.itemconfig('dot', cursor='cross')        
         
@@ -228,27 +237,30 @@ class SelectFrame():
             return
         dx, dy = self.offset    
         x, y = event.x-dx, event.y-dy  
+        x1, y1, x2, y2 = self.box
         if self.dragging == 'resize':
-            x0, y0 = self.pos
-            w, h = event.x - x0, event.y - y0            
-            self.size = w,h
+            x2, y2 = event.x, event.y
+            box = x1, y1, x2, y2
         else:                  
             self.pos = x, y
             self.canvas.moveto(self.obj.tag, x=x, y=y)
+            box = self.canvas.bbox(self.obj.tag)
         
-        self.set_rect(self.pos, self.size)
+        self.set_rect(box)
         
     def on_release(self, event):
         self.dragging = False
         obj = self.obj
+        if obj == None:
+            return
         x, y = self.pos
         obj.moveto(self.pos)
         item = obj.tag
         self.canvas.config(cursor='arrow')
-        #self.canvas.scale(item, w, h, w1/w, h1/w)
-        #self.canvas.moveto(item, x=x, y=y)
-        #self.canvas.tag_lower(self.item)
-        self.set_rect((x, y), self.size)
+        box = obj.update()        
+        obj.modified = True
+        self.set_rect(box)
+        self.canvas.event_generate("<<ObjMove>>")
         
     def includep(self, p):
         x, y = p
@@ -263,12 +275,71 @@ class SelectFrame():
             
     def set_obj(self, obj):        
         self.obj = obj
-        self.set_rect(obj.pos, obj.size)
+        box = self.canvas.bbox(obj.tag)
+        self.set_rect(box)
         
+class MoveMode():
+    def init_selectframe(self):
+        self.objs = []
+        self.obj = None
+        self.mpos = (0, 0)
+        self.selectframe = SelectFrame(self)
+        
+    def set_move_mode(self):
+        if self.objs != []:
+           self.obj = self.objs[-1]
+           self.selectframe.set_obj(self.obj)
+        self.bind('<ButtonPress-1>', self.on_press) 
+        self.bind('<ButtonRelease-1>', self.on_release)  
+        self.bind('<B1-Motion>', self.on_motion)    
 
-class ImageCanvas(tk.Canvas):
+    def select_obj(self, item):
+        if type(item ) == tuple:
+            item = item[0]
+        for tag in self.gettags(item):
+            obj = self.item_obj_map.get(tag)
+            if obj != None:
+                self.selectframe.set_obj(obj)
+                return obj
+        
+    def on_press(self, event):
+        x, y = event.x, event.y
+        self.mpos = x, y
+        if self.selectframe.includep((x, y)):
+            s = str((x, y, 'press'))
+            self.selectframe.on_press(event)
+        else:
+            item = self.find_closest(x, y)
+            
+            obj = self.select_obj(item)
+            s = str((x, y, item))    
+            if obj != None:
+                self.obj = obj
+                self.selectframe.on_press(event)
+        self.itemconfig('info', text=s)
+
+    def on_motion(self, event):
+        x, y = event.x, event.y
+        if self.selectframe.dragging != False:
+            self.selectframe.on_motion(event)        
+        
+    def on_release(self, event):
+        x, y = event.x, event.y        
+        if (x, y) == self.mpos:
+            return
+        if self.selectframe.dragging != False:
+            s = str((x, y, 'release'))
+            self.selectframe.on_release(event)
+        else:
+            item = self.find_closest(x, y)
+            obj = self.select_obj(item)
+            s = str((x, y, item))
+        self.itemconfig('info', text=s)
+        
+    
+class ImageCanvas(tk.Canvas, MoveMode):
     def __init__(self, master, **kw):
-        tk.Canvas.__init__(self, master, **kw)  
+        super().__init__(master, **kw)  
         self.root = master.winfo_toplevel()
         self.mode = 'text'
         self.text = '紅塵-黃-綠-藍-電子'
@@ -286,7 +357,7 @@ class ImageCanvas(tk.Canvas):
         self.item_obj_map = {}
         self.points = []
         self.data = []
-        self.selectframe = SelectFrame(self)
+        self.init_selectframe()
         #self.add_text_item(200, 200, self.text)
         self.set_mode(self.mode)        
         
@@ -307,12 +378,7 @@ class ImageCanvas(tk.Canvas):
     def set_mode(self, mode):
         self.mode = mode.lower()        
         if self.mode == 'move':
-            if self.objs != []:
-               self.obj = self.objs[-1]
-               self.selectframe.set_obj(self.obj)
-            self.bind('<ButtonPress-1>', self.on_press) 
-            self.bind('<ButtonRelease-1>', self.on_release)  
-            self.bind('<B1-Motion>', self.on_motion)            
+            self.set_move_mode()            
         else:    
             self.obj = None
             self.bind('<ButtonPress-1>', self.on_mousedown) 
@@ -342,46 +408,6 @@ class ImageCanvas(tk.Canvas):
         elif mode == 'line':
             self.draw_cur_line(x, y)
         
-    def select_obj(self, item):
-        if type(item ) == tuple:
-            item = item[0]
-        for tag in self.gettags(item):
-            obj = self.item_obj_map.get(tag)
-            if obj != None:
-                self.selectframe.set_obj(obj)
-                return obj
-        
-    def on_press(self, event):
-        x, y = event.x, event.y
-        if self.selectframe.includep((x, y)):
-            s = str((x, y, 'press'))
-            self.selectframe.on_press(event)
-        else:
-            item = self.find_closest(x, y)
-            
-            obj = self.select_obj(item)
-            s = str((x, y, item))    
-            if obj != None:
-                self.obj = obj
-                self.selectframe.on_press(event)
-        self.itemconfig('info', text=s)
-
-    def on_motion(self, event):
-        x, y = event.x, event.y
-        if self.selectframe.dragging != False:
-            self.selectframe.on_motion(event)        
-        
-    def on_release(self, event):
-        x, y = event.x, event.y        
-        
-        if self.selectframe.dragging != False:
-            s = str((x, y, 'release'))
-            self.selectframe.on_release(event)
-        else:
-            item = self.find_closest(x, y)
-            obj = self.select_obj(item)
-            s = str((x, y, item))
-        self.itemconfig('info', text=s)
         
     def on_mousedown(self, event=None, param=None):
         x, y = event.x, event.y     
@@ -437,12 +463,14 @@ class ImageCanvas(tk.Canvas):
         self.item_obj_map[item] = obj
         self.item_obj_map[tag] = obj
         
-    def draw_text(self, x, y, text, color=None):
+    def draw_text(self, x, y, text, color=None, anchor='nw', font=None):
         if color == None:
            color = self.colors['text'] 
+        if font == None:
+            font = self.font    
         tag = 'text' + str(self.index)
         self.index += 1
-        item = self.create_text(x, y, text=text, fill=color, font=self.font, anchor='nw', tag=('text', tag))
+        item = self.create_text(x, y, text=text, fill=color, font=font, anchor=anchor, tag=('text', tag))
         box = self.bbox(item)
         obj = Obj(self, tag, 'text', box, text=text, pos=(x, y), color=color)
         self.add_obj(obj, item, tag)
@@ -452,12 +480,14 @@ class ImageCanvas(tk.Canvas):
         if color == None:
            color = self.colors['line'] 
         p2 = (x0, y0, x, y)
-        tag = 'line' + str(self.index)
+        tagindex = 'line' + str(self.index)
+        tags = tagindex, 'line'
         self.index += 1
-        item = self.create_line(p2, fill=color, width = self.lw, tag=('line', tag))
+        item = self.create_line(p2, fill=color, width = self.lw, tag=tags)
         box = self.bbox(item)     
-        obj = Obj(self, tag, 'line', box, pos=p2, color=color)
-        self.add_obj(obj, item, tag)
+        obj = Obj(self, tagindex, 'line', box, pos=p2, color=color)
+        obj.item = item
+        self.add_obj(obj, item, tagindex)
         return obj
         
     def draw_image(self, mode, x, y, filename):

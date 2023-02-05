@@ -246,14 +246,14 @@ class dbSelector(tk.Frame, SelectDB):
         self.update()
          
        
-def run(name):    
+def open(name):    
     app = App('DB Table Selector', size=(500, 900))    
     frame = dbSelector(app, 'note', 'Graph')
     app.packfill(frame)
     app.mainloop()   
             
 if __name__ == '__main__':   
-    run('code')
+    open('code')
     #test()
 
         
