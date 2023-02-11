@@ -29,15 +29,18 @@ class Editor(tk.Frame):
         super().__init__(master, **kw)
         self.config(padx=10)
         self.tree_item = None
-        frame = tk.Frame(self)
-        frame.config(padx = 10, pady=5, bg='#232323')  
-        self.add(frame)
-        self.add_entry(frame)
+        layout = Layout(self)
+        panel = Panel(self, height=1, bg='#232323')
+        panel.config(padx = 10, pady=5)  
+        
+        layout.add_top(panel, 50)
+        self.add_entry(panel)
 
         self.text = Text(self, width=120)
         self.text.init_dark_config()
         #self.add(self.text)
-        self.text.pack(fill='both', expand=True)
+        #self.text.pack(fill='both', expand=True)
+        layout.add_box(self.text)
         self.tag_config = self.text.tag_config
         self.table = None
         self.db_key = 'temp'        
@@ -51,13 +54,13 @@ class Editor(tk.Frame):
         self.entry.set('')
         self.text.set_text('')
         
-    def add_entry(self, frame):
-        frame.config(padx = 10, pady=5, bg='#232323') 
-        entry = aui.add_entry(frame, label='Title Name: ', width=70)
-        entry.add_button('commit', self.on_commit)               
+    def add_entry(self, panel):
+        entry = panel.add_entry(label='Title Name:  ', width=50)
+        entry.label.config(bg='#232323', fg='white')
+        panel.add_button('commit', self.on_commit)               
         entry.set('test')
         self.entry = entry
-        entry.add_button('test', self.on_test_cmd)
+        panel.add_button('test', self.on_test_cmd)
             
     def set_text(self, text):
         text = text.strip()
@@ -81,9 +84,9 @@ class Editor(tk.Frame):
         self.tree_item = item
         self.entry.set(key)
         res = self.table.getdata(key)
-        if len(res) == 0:
-            res = 'empty'
-        text = res
+        if res == None:
+            res = 'None'
+        text = str(res)
         self.set_text(text)
     
     def get_title(self, text):
@@ -132,13 +135,16 @@ class Editor(tk.Frame):
         
         
 class HeadPanel():
-    def __init__(self, app):
+    def __init__(self, app, bg=None):
         self.app = app
         frame = app.top
-        self.bg = frame.cget('bg')
+        if bg == None:
+            bg = frame.cget('bg')
+        self.bg = bg
+        
         self.font = ('Mono', 15)
         self.bold = ('Mono', 15, 'bold')
-        pn = Panel(frame )
+        pn = Panel(frame, bg=bg)
         self.tabs = self.add_db_buttons(pn) 
         self.textvar = self.add_textlabel(pn)                
         self.buttons = self.add_buttons2(pn)        
@@ -201,6 +207,7 @@ class CodeFrame(aFrame, SelectDB):
         super().__init__(master)
         self.size = master.size
         self.app = self
+        self.root = master.winfo_toplevel()
         icon = '/home/athena/data/icon/view.png'
         self.set_icon(icon)
         self.bg = self.cget('bg')
@@ -350,11 +357,11 @@ class CodeFrame(aFrame, SelectDB):
         self.left = tk.Frame(self)
         layout.add_left(self.left, 100)
         
-        self.panel = HeadPanel(self)  
+        self.panel = HeadPanel(self, bg=self.cget('bg'))  
         editor = self.editor = Editor(self)          
-        msg = self.msg = self.add_msg(self)    
-        tree = self.tree = self.add_tree(self)
-        layout.add_set1(objs=(tree, editor, msg), seph=0.25)
+        msg = self.msg = self.get('msg')    
+        tree = self.tree = self.get('tree')
+        layout.add_HV(tree, editor, msg, sep=(0.25, 0.7))
         tree.click_select = 'click'   
         tree.msg = self.msg
         tree.bind('<ButtonRelease-1>', self.on_select) 
@@ -366,8 +373,12 @@ class CodeFrame(aFrame, SelectDB):
          
        
 def test():
-    app = aui.TopFrame('Sample SQL Editor', size=(1100, 800))    
-    app.add(CodeFrame)    
+    app = App()    
+    frame = aui.TopFrame()    
+    panel = frame.add('panel')
+    panel.pack(fill='both', expand=True)   
+    frame1 = CodeFrame(panel)
+    frame1.pack(fill='both', expand=True)   
     app.mainloop()     
     
 def run(name):
@@ -382,7 +393,7 @@ def run(name):
             
 if __name__ == '__main__':   
     run('code')
-    #test()
+
 
         
     

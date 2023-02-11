@@ -5,7 +5,7 @@ import sqlite3
 import numpy as np
 import json
 from collections import Counter
-from pprint import pprint
+from pprint import pprint, pformat
 
 p1 = '/usr/lib/python3.8'           
 p2 = '/link/localpack'
@@ -25,7 +25,7 @@ def realpath(path):
     path = os.path.realpath(path) 
     return path
     
-def get_path(name):
+def _get_path(name):
     path = pdct.get(name, name)
     return realpath(path) 
     
@@ -89,10 +89,10 @@ class Table():
     def __init__(self, db, name):      
         self.db = db
         self.name = name        
+        self.key = 'name'
         self.execute = self.db.execute
         self.commit = self.db.commit
         self.executemany = self.db.executemany
-        self.print = pprint
 
     def show(self):
         from DB.dbView import dbTableView
@@ -129,14 +129,10 @@ class Table():
         lst = []
         for k, v in dct.items():
             lst.append((str(k), str(v)))
-        self.executemany("INSERT INTO %s VALUES(%s)" % (self.name, fields), lst) 
-                        
-    def query(self, item, key, value):
-        res = self.execute("SELECT %s FROM %s where %s=\"%s\"" % (item, table, key, value))
-        return res        
+        self.executemany("INSERT INTO %s VALUES(%s)" % (self.name, fields), lst)       
         
     def delete_key(self, key):        
-        self.execute(f'DELETE FROM {self.name} WHERE name = \"{key}\";')   
+        self.db.execute(f'DELETE FROM {self.name} WHERE name = \"{key}\";')   
         self.commit()
         
     def insert_data(self, key, data): 
@@ -146,30 +142,29 @@ class Table():
         self.insert_data(key, data) 
         
     def deldata(self, key):
-        self.delete_key(key)
+        self.db.execute(f'DELETE FROM {self.name} WHERE name = \"{key}\";')   
+        self.commit()
         
     def setdata(self, key, data):        
-        self.delete_key(key)
-        self.insert_data(key, data) 
+        self.db.execute(f'DELETE FROM {self.name} WHERE name = \"{key}\";')   
+        self.db.insert_data(self.name, key, data)
         
     def getdata(self, key=None, default=None):
         if key == None:
             return self.getall()
-        lst = self.db.fetchall(f"SELECT data FROM {self.name} WHERE name=\"{key}\"")
-        if lst == [] or lst == None:
-            if default != None:
-                return default
-            return str(lst)
-        return str(flatten(lst)[0])     
+        res = self.db.fetchone(f"SELECT data FROM {self.name} WHERE name=\"{key}\"")    
+        if res == None and default != None:
+            return default
+        return res
         
     def renamedata(self, key, newkey):
         data = self.getdata(key)
-        self.delete_key(table, key)
-        self.insert_data(table, newkey, data) 
+        self.delete_key(key)
+        self.insert_data(newkey, data) 
         
     def search(self, key):
         res = self.getdata(key)
-        if len(res) > 0:
+        if res != None and len(res) > 0:
             return res
         res = self.db.fetchall(f'SELECT name FROM {self.name} WHERE name LIKE \'%{key}%\';', flat=True)        
         return res
@@ -192,6 +187,13 @@ class Table():
             return self.getnames()     
         else:
             return self.search(key)    
+            
+    def print(self, key='all'):
+        if key == 'all':
+            res = self.getall()
+        else:
+            res = self.get(key)
+        pprint(res)
         
 
 class SqlDB(object):
@@ -274,8 +276,10 @@ class SqlDB(object):
         res = self.execute(cmd)  
         if res == None:
             return 
-        lst = res.fetchone()
-        return lst
+        res = res.fetchone()
+        if res == None or res == ():
+            return 
+        return res[0]    
              
     def executemany(self, cmd, data):
         if self.db == None:
@@ -491,6 +495,8 @@ def get_cache(key):
 def set_cache(key, data):
     db = open('cache')
     db.setdata('cache', key, data)
+getcache = get_cache
+setcache = set_cache
     
 def search(key, fn = 'cache', table='cache'):
     db = open(fn)
@@ -524,8 +530,14 @@ def show(fn, table):
        table.show()        
 
 def get_path(name):
-    path = pdct.get(name, name)
-    return realpath(path) 
+    table = get_table('cache', 'path')
+    path = table.getdata(name)
+    return path
+    
+def cache_path(name, value):
+    table = get_table('cache', 'path')
+    table.setdata(name, value)
+    return table
 
 def puts(data):        
     pprint(data)        
@@ -540,9 +552,13 @@ def puts(data):
     #db.remove_table('word')
     #datalst = table.getdata()
                 
-if __name__ == '__main__':
-    db = open('code')
+def db_show(name='code'):
+    db = open(name)
     db.show()
+    
+if __name__ == '__main__':
+    path = get_path('src')
+    print(path)
 
 
 

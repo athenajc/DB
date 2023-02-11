@@ -40,8 +40,7 @@ class MsgBox(TextObj):
     def write(self, text):
         if text.strip() == '':
             return
-        self.insert('insert', str(text))
-        
+        self.insert('insert', str(text))        
 
 class TextBox(Panel):
     def __init__(self, tester, name, data, **kw):
@@ -103,12 +102,13 @@ class TextBox(Panel):
         text = '\n'.join(lst)          
         self.exec_cmd(text, self.g_vars, self.l_vars)   
         for s in lst:
-            if s in self.g_vars or s in self.l_vars:
-                self.eval_print(s)
-            elif '=' in s or '(' in s:
-                continue                
+            s1 = s.strip()
+            if s1 in self.g_vars or s1 in self.l_vars:
+                self.eval_print(s1)
+            elif '(' in s1 and s1[-1] == ')' and not '=' in s1:
+                self.eval_print(s1)    
             else:
-                self.eval_print(s)    
+                pass   
         if self.msg.get_text() != '':        
             self.msg.puts('\n')
         else:
@@ -133,7 +133,8 @@ class TextBox(Panel):
                r = eval(s, g_vars, l_vars) 
            return r
         except Exception as e:
-           self.msg.puts(s, e)    
+           #self.msg.puts(s, e)    
+           pass
 
     def try_exec(self, s, g_vars, l_vars):
         try:
@@ -152,13 +153,13 @@ class TextBox(Panel):
             
         
 class Tester():
-    def __init__(self, app):     
+    def __init__(self, app, name='np'):     
         self.app = app    
         self.bg = '#464d5a'
         app.config(bg = self.bg)
         db = DB.open('code')
         self.table = db.get_table('tmp')
-        self.name = self.table.getdata('last', 'tmp')
+        self.name = name
         self.items = self.table.get('names')
         self.add_name_entry()
         
@@ -234,6 +235,7 @@ class Tester():
 
     
 if __name__ == '__main__':     
+    from aui import App
     app = App(title='Test', size=(900, 1000))   
     Tester(app)
     app.mainloop()
