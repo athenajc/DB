@@ -12,16 +12,21 @@ import numpy as np
 import pandas
 import zlib
 import gi
+import DB
+
 gi.require_version('Gtk', '3.0')
 gi.require_version('PangoCairo', '1.0')
 from pprint import pprint
 
 objdct = {}   
 
+def get_db():        
+    return DB.open('modules')
+    
+db = get_db()    
+    
 def get_modules():
-    db = SqlDB('~/data/modules.db')
     modules = db.fetchall("SELECT name FROM module_file", flat=True) 
-    db.close()
     return modules
     
 modules = get_modules()
@@ -189,7 +194,7 @@ class ModuleUtils():
         return lst
                 
 class ModuleDB(ModuleUtils):
-    db = conn = SqlDB('~/data/modules.db')
+    db = conn = get_db()
     tables = db.get_table_names()    
     
     def __init__(self):    
@@ -264,6 +269,19 @@ class ModuleDB(ModuleUtils):
     def getvar(self, key):
         return self.db.getdata('cache', key)
         
+    def set_cache(self, key, value):    
+        self.db.setdata('cache', key, value)
+        
+    def get_cache(self, key):
+        return self.db.getdata('cache', key)
+        
+    def get_doc(self, name = 'tkcode'): 
+        res = db.getdata('doc', name)
+        data = eval(res)
+        if data in [None, []]:
+            return ''
+        text = zlib.decompress(data).decode()
+        return text
 
     
 def flatten(lst):
@@ -341,12 +359,10 @@ class HelpObj(ModuleObj):
         self.objtype = objtype               
         return True
         
-    def load_doc_db(self):                 
-        res = mdb.fetch('Select doc from doc where name = \"%s\"' % self.name)
-        if res == None or res == []:
-            return False      
-        data = res[0][0]
-        text = zlib.decompress(data).decode()
+    def load_doc_db(self):                         
+        text = mdb.get_doc(self.name)
+        if text == '':
+            return False
         self.doc = text   
         return True     
     
@@ -377,15 +393,16 @@ class HelpObj(ModuleObj):
     
 if __name__ == '__main__':    
     mdb = ModuleDB()    
-    print(modules)
+    #print(modules)
     #test.search('skimage')
     #db = ModuleDB() 
     #db.gen_function_list(['pydoc']) 
     #print(test.db.search('pydoc'))
     #obj = get_obj('pandas')
-    m = ModuleObj('dbm')
-    print(m.get_doc())
-    print('...')
+    #m = ModuleObj('dbm')
+    #print(m.get_doc())
+    #print('...')
+    db.show()
     
 
 

@@ -6,7 +6,7 @@ import tkinter as tk
 from tkinter import ttk
 from tkinter import colorchooser
 import aui
-from aui import App, add_entry, Text, Layout, ColorFrame
+from aui import App, DirGrid, aFrame
 import shapely
 import numpy as np
 import matplotlib as mp
@@ -14,8 +14,8 @@ from matplotlib import patches, transforms, bezier
 from shapely.geometry import polygon, linestring
 from PIL import ImageFont
 from aui import ImageObj
-from aui import askopenfilename
 from dbSelector import dbSelector
+import DB
 
     
 def curve(points, steps=0.05):
@@ -32,18 +32,18 @@ def simplify(points):
     return a    
        
 
-class Editor(tk.Frame):
+class Editor(aFrame):
     def __init__(self, master, **kw):       
         super().__init__(master, **kw)
         self.root = master.winfo_toplevel()
         self.config(padx=10)
         self.tree_item = None
-        frame = tk.Frame(self)
-        frame.config(padx = 10, pady=5, bg='#232323')  
-        self.add(frame)
-        self.add_entry(frame)
-
-        self.text = Text(self, width=120)
+        panel = self.get('panel', bg='#232323', height=1)
+        #frame.config(padx = 10, pady=5, bg='#232323')  
+        self.add(panel)
+        self.add_entry(panel)
+     
+        self.text = self.get('text', width=120)
         self.text.init_dark_config()
         self.puts = self.text.puts
         self.get_text = self.text.get_text
@@ -62,13 +62,13 @@ class Editor(tk.Frame):
         self.entry.set('')
         self.text.set_text('')
         
-    def add_entry(self, frame):
-        frame.config(padx = 10, pady=5, bg='#232323') 
-        entry = aui.add_entry(frame, label='Title Name: ', width=70)
-        entry.add_button('commit', self.on_commit)               
+    def add_entry(self, panel):
+        #frame.config(padx = 10, pady=5, bg='#232323') 
+        entry = panel.add_entry(label='Title Name: ', width=70)
+        panel.add_button('commit', self.on_commit)               
         entry.set('test')
         self.entry = entry
-        entry.add_button('To Canvas', self.to_canvas)
+        panel.add_button('To Canvas', self.to_canvas)
             
     def set_text(self, text):
         text = text.strip()
@@ -338,15 +338,16 @@ class MoveMode():
         
     
 class ImageCanvas(tk.Canvas, MoveMode):
-    def __init__(self, master, **kw):
+    def __init__(self, master, size, **kw):
         super().__init__(master, **kw)  
+        self.size = size
         self.root = master.winfo_toplevel()
         self.mode = 'text'
         self.text = '紅塵-黃-綠-藍-電子'
         self.font = ('Mono', 20)
-        self.fontname = '/home/athena/data/ttf/ChinSong1.ttf'
+        self.fontname = '/home/athena/data/ttf/simhei.ttf'
         #self.font = (self.fontname, 16)
-        self.imagefont = ImageFont.truetype(self.fontname, 35)
+        self.imagefont = ImageFont.truetype(self.fontname, 25)
         self.pos = 0, 0
         self.index = 0
         self.lw = 2
@@ -354,6 +355,7 @@ class ImageCanvas(tk.Canvas, MoveMode):
         self.colors = dict(text='#333', line='#999', pen='#444')
         self.objs = []
         self.obj = None
+        self.bkg = None
         self.item_obj_map = {}
         self.points = []
         self.data = []
@@ -490,14 +492,14 @@ class ImageCanvas(tk.Canvas, MoveMode):
         self.add_obj(obj, item, tagindex)
         return obj
         
-    def draw_image(self, mode, x, y, filename):
+    def draw_image(self, mode, x, y, filename, imgtag='img'):
         imageobj = ImageObj(filename)
         if imageobj == None:
             return
         tag = mode + str(self.index)
         self.index += 1
         tkimage = imageobj.get_tkimage()  
-        item = self.create_image(x, y, image=tkimage, anchor='nw', tag=(mode, tag))
+        item = self.create_image(x, y, image=tkimage, anchor='nw', tag=(mode, tag, imgtag))
         box = self.bbox(item)   
         obj = Obj(self, tag, mode, box, imageobj=imageobj, filename=filename, pos=(x, y))
         obj.tkimage = tkimage
@@ -576,8 +578,9 @@ class ImageCanvas(tk.Canvas, MoveMode):
             dct = eval(data)
             color = dct.get('color')
             if mode == 'line':
-                x, y, x1, y1 = dct['coords']
-                self.draw_line(x, y, x1, y1, color)
+                if 'coords' in dct:
+                   x, y, x1, y1 = dct['coords']
+                   self.draw_line(x, y, x1, y1, color)
             elif mode == 'pen':             
                 points = eval(dct['points'])                
                 self.draw_pen(points, color)
@@ -591,13 +594,35 @@ class ImageCanvas(tk.Canvas, MoveMode):
                 self.draw_text(x, y, mode, color)
         
 
-    def add_image(self, filename):
-        self.draw_image('image', 0, 0, filename)
+    def add_image(self, filename, tag='img'):
+        obj = self.draw_image('image', 0, 0, filename, tag)
         self.set_mode('move')
+        if tag == 'bkg':
+            self.lower(obj.tag)
+            
+    def set_bkg(self, filename, bright=1):
+        if self.bkg != None:
+            self.delete(self.bkg.item)            
+            self.bkg = None
+        self.delete('bkg')    
+        obj = ImageObj(filename, size=self.size)
+        if obj == None:
+            return    
+        #obj.constrast(0.6)    
+        #obj.brightness(1.2)  
+        tkimage = obj.get_tkimage()  
+        item = self.create_image(0, 0, image=tkimage, anchor='nw', tag='bkg')    
+        self.bkg = obj
+        obj.item = item
+        obj.tkimage = tkimage
+        self.lower(item)
+        return obj       
         
     def draw_to_image(self, imageobj):
         lw = self.lw      
         draw = imageobj.get_draw()
+        if self.bkg != None:
+            imageobj.draw_image((0, 0), self.bkg)
         for obj in self.objs:
             obj.update()    
             if obj.mode == 'bkg':
@@ -617,25 +642,26 @@ class ImageCanvas(tk.Canvas, MoveMode):
             else:
                 draw.text(obj.pos, text=obj.text, fill=obj.color, font=self.imagefont)   
                 
-    def save_image(self):        
+    def save_image(self, fn=None):        
         w, h = 1024, 768
+        if self.bkg != None:
+            w, h = self.bkg.size
         imageobj = ImageObj(size=(w, h))
         self.draw_to_image(imageobj)  
-        from fileio import get_path    
-        box = imageobj.get_clip_box(imageobj.image)
-        print(box)    
-        imageobj.save(get_path('~/tmp/canvas.png'), box=box)    
+        if fn == None:
+            fn = '/home/athena/tmp/canvas.png'
+        imageobj.save(fn)    
         
             
 
-class CanvasFrame(tk.Frame):
+class CanvasFrame(aFrame):
     def __init__(self, master, **kw):
-        tk.Frame.__init__(self, master, **kw)
-        layout = Layout(self)
-        panel = aui.Panel(self)
+        super().__init__(master, **kw)
+        layout = self.get('layout')
+        panel = self.get('panel')
         layout.add_top(panel, 50)
         self.add_toolbar(panel)        
-        canvas = ImageCanvas(self, bg='#f5f3f3')
+        canvas = ImageCanvas(self, bg='#f5f3f3', size=(1024, 768))
         self.canvas = canvas                
         self.editor = Editor(self)
     
@@ -710,29 +736,68 @@ class CanvasFrame(tk.Frame):
         self.canvas.set_color(color)
         self.label.config(fg=color)
 
-class DrawText(tk.Frame):
+
+class ColorGrid(aFrame):
+    def __init__(self, master, **kw):
+        super().__init__(master, **kw)    
+        self.root = master.winfo_toplevel()
+        lst = [('Set as Bkg', self.on_set_bkg), ('Put on Canvas', self.on_put_on_canvas)]
+        panel = self.get('panel')
+        panel1 = self.get('panel') 
+        self.grid = grid = DirGrid(panel1)          
+        panel1.menu = panel1.add_menu(lst)  
+        grid.place(x=0, y=45, relwidth=1, relheight=1)
+        path = DB.get_path('gallery') + '/bkg'
+        grid.set_dir(path)   
+        
+        colorbar = panel.add_colorbar(self.on_select_color)
+        layout = self.get('layout')
+        layout.add_V2(panel, panel1, 0.3)
+        self.packfill()
+                
+    def on_set_bkg(self, event=None):
+        objs = self.grid.get_selection()
+        for obj in objs:
+            self.canvas.set_bkg(obj.filename)
+            break
+        
+    def on_put_on_canvas(self, event=None):
+        pass
+        
+    def on_select_color(self, event=None):
+        color = event.widget.cget('bg')
+        self.canvas.set_color(color)
+                  
+
+class DrawText(aFrame):
     def __init__(self, app, **kw):
         super().__init__(app, **kw)
         self.root = root = app.winfo_toplevel()
-        self.layout = Layout(self)
+        self.layout = self.get('layout')
         selector = dbSelector(self, 'note', 'Graph') 
         self.tk.setvar('selector', selector)
         canvas = CanvasFrame(self) 
-        colorbox = ColorFrame(self)
+        colorbox = ColorGrid(self)
+        colorbox.canvas = canvas.canvas
+        #colorbox.add_colorbar(self.on_select_color)
         self.layout.add_H3(selector, canvas, colorbox, sep=(0.2, 0.8))
         self.canvas = canvas 
         selector.editor = canvas.editor
         selector.bind_act('select', self.canvas.set_data)
-        colorbox.bind_act('select', self.canvas.set_color)
         self.pack(fill='both', expand=True)
         canvas.editor.bind_all('<<CommitItem>>', selector.on_commit)  
         canvas.canvas.msg = selector.msg
         root.editor = canvas.editor
         root.canvas = canvas.canvas
         root.selector = selector
-        root.msg = selector.msg
+        self.msg = root.msg = selector.msg
         sys.stdout = selector.msg
     
+    def on_select_color(self, event=None):
+        color = event.widget.cget('bg')
+        self.canvas.set_color(color)
+        self.msg.puts(color)
+        
     def on_select(self, key, text):
         self.canvas.set_input_text(key)    
          

@@ -3,7 +3,7 @@ import os, sys, re, time
 import tkinter as tk
 import DB
 import aui
-from aui import  App, Text
+from aui import  App, aFrame, Text
 from aui import Layout, Panel
 from random import Random
 from pprint import pformat
@@ -14,6 +14,7 @@ class HeadPanel(Panel):
         super().__init__(app)
         self.app = app
         self.bg = app.cget('bg')
+        self.config(bg=self.bg)
         self.font = ('Mono', 11)
         self.bold = ('Mono', 11, 'bold')
         dbfiles = ['code', 'cache', 'file', 'note']
@@ -38,7 +39,8 @@ class HeadPanel(Panel):
             self.dboptions.add(name)
         
     def add_dbfile_entry(self, items=[], act=None):
-        options = self.add_options(label='dbFile:', items=items, act=act)   
+        options = self.add_options(label='dbFile:', items=items, act=act)  
+        options.config(width=8) 
         entry = self.add_entry(act=self.on_dbentry)        
         entry.config(width=7)
         self.add_sep()
@@ -79,13 +81,13 @@ class SelectDB():
         self.switch_table(name)    
                          
         
-class dbSelector(tk.Frame, SelectDB):     
+class dbSelector(aFrame, SelectDB):     
     def __init__(self, master, name='code', table=None, **kw):       
         super().__init__(master, **kw)
         self.size = master.size
         self.app = self
         icon = '/home/athena/data/icon/view.png'
-        aui.set_icon(self, icon)
+        master.winfo_toplevel().set_icon(icon)
         self.bg = self.cget('bg')
         self.fg = self.cget('highlightcolor')
         self.config(borderwidth=3)
@@ -102,6 +104,7 @@ class dbSelector(tk.Frame, SelectDB):
         self.init_ui()      
         #self.panel.set_db(name)
         self.panel.dboptions.set(name)
+        
         if self.table != None:
            self.switch_table(table)  
         elif tables != None and len(tables) > 1: 
@@ -226,21 +229,21 @@ class dbSelector(tk.Frame, SelectDB):
                
     def init_ui(self):
         x, y = 100, 45
-        layout = Layout(self)        
+        layout = self.get('layout')        
                
         self.panel = HeadPanel(self) 
         layout.add_top(self.panel, y)  
         self.left = tk.Frame(self)
         layout.add_left(self.left, x)  
         
-        tree = self.tree = aui.add_tree(self)
-        msg = self.msg = aui.add_msg(self)
+        tree = self.tree = self.add('tree')
+        msg = self.msg = self.add('msg')
         layout.add_V2(tree, msg, sep=0.6)
      
         tree.click_select = 'click'   
         tree.bind('<ButtonRelease-1>', self.on_select) 
 
-        self.menubar = Panel(self.left, style='v', size=(100, 1080)) 
+        self.menubar = Panel(self.left, style='v', width=10) 
         self.menubar.pack()            
         self.set_table_menu()
         self.update()
@@ -249,7 +252,7 @@ class dbSelector(tk.Frame, SelectDB):
 def open(name):    
     app = App('DB Table Selector', size=(500, 900))    
     frame = dbSelector(app, 'note', 'Graph')
-    app.packfill(frame)
+    frame.packfill()
     app.mainloop()   
             
 if __name__ == '__main__':   

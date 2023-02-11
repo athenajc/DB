@@ -2,30 +2,30 @@ import os
 import re
 import sys
 import aui
-from aui import ttk
-from aui import App, aFrame, FigureTk
-from aui import Text, Layout, Panel
+from tkinter import ttk
+from aui import App, aFrame, FigureTk, DirGrid
+#from aui import Text, Layout, Panel
 import DB
 import tk, nx, plt
 import numpy as np
 from pprint import pprint, pformat
-
+from GraphEditor import ImageCanvas, ColorGrid
         
-class Editor(tk.Frame):
+class Editor(aFrame):
     def __init__(self, master, **kw):       
         super().__init__(master, **kw)
         root = master.winfo_toplevel()
         self.app = root.app
-        layout = Layout(self)
+        layout = self.get('layout')
         self.tree_item = None
-        panel = Panel(self, bg='#232323', height=2)
+        panel = self.get('panel', bg='#232323', height=1)
         layout.add_top(panel, 50)
         self.add_entry(panel)
          
-        self.text = Text(self, width=120)
+        self.text = self.get('text', width=120)
         self.text.init_dark_config()        
         
-        self.databox = Text(self, width=120)
+        self.databox = self.get('text', width=120)
         layout.add_V2(self.text, self.databox, 0.6)
 
         self.tag_config = self.text.tag_config
@@ -42,13 +42,10 @@ class Editor(tk.Frame):
         self.entry.set('')
         self.text.set_text('')           
         
-    def add_entry(self, panel):
-        panel.add_space(1)
+    def add_entry(self, panel):        
         panel.add_button('New', self.reset)      
         panel.add_button('Delete', self.on_delete)      
-        panel.add_label('  |  ', fg='#aaa')       
-        entry = panel.add_entry(label='Name:', width=25)
-        panel.add_label('  |  ', fg='#aaa')
+        entry = panel.add_entry(label=' Name: ', width=16)
         panel.add_button('commit', self.on_commit) 
         panel.add_button('Rename', self.on_rename)
         self.entry = entry        
@@ -76,6 +73,8 @@ class Editor(tk.Frame):
       
         if objs[0][0] in pretext:       
             start = box.search('pos', '1.0')
+            if start == '':
+                return
             for name, xy in objs:
                 pos = box.search(name, start)
                 if pos == '':
@@ -267,16 +266,17 @@ class Graph():
         self.colors = dct.get('colors', {})        
         
 
-from GraphEditor import ImageCanvas        
+        
         
 class GraphCanvas(ImageCanvas):
     def __init__(self, master, size, **kw):
-        super().__init__(master, **kw)
+        super().__init__(master, size, **kw)
+        self.size = size
         self.root = master.winfo_toplevel()       
         self.app = self.root.app
         self.font = ('Mono', 15)
         self.config(borderwidth=1, highlightthickness=1)
-        self.create_rectangle(5, 10, 710, 760, outline='#777', fill='#fff', width=3, tag='bg')        
+        #self.create_rectangle(5, 10, 710, 760, outline='#777', fill='#fff', width=3, tag='bg')        
         self.graph = Graph(self)                   
         self.init_selectframe()
         self.set_move_mode()
@@ -336,24 +336,28 @@ class CanvasFrame(aFrame):
         super().__init__(master, **kw) 
         self.root = master.winfo_toplevel()       
         self.app = self.root.app
-        items = [('Save svg', self.on_save_svg),
+        items = [('Save Image', self.on_save_image),
                  ('', ''),
                  ('Gen DCT', self.gen_dct_data),
                  ('', ''),
                  ('Update Canvas', self.on_update),
                  ('Update Editor', self.update_editor_data),
                 ]   
-        layout = Layout(self)
-        panel = Panel(self, items=items, height=1)
+        layout = self.get('layout')
+        panel = self.get('panel', items=items, height=1)
         layout.add_top(panel, 50)
 
         panel.config(bg='#353535', relief='sunken')
         
         self.canvas = GraphCanvas(self, size=(700, 700))
+        self.canvas.place(x=0, y=50, relwidth=1, relheight=1)
+       # panel = ColorGrid(self)
+        #panel.add_colorbar(self.on_select_color)
+        #layout.add_H2(self.canvas, panel, 0.7)
         
-        panel = Panel(self)
-        panel.add_colorbar(self.on_select_color)
-        layout.add_H2(self.canvas, panel, 0.7)
+    def on_save_image(self, event=None):
+        fn = self.root.ask('savefile', ext='img')
+        self.canvas.save_image(fn)
         
     def on_update(self, event=None):
         self.app.update_canvas()
@@ -406,12 +410,13 @@ class DotView():
         self.editor.set_text(text)
         
     def init_ui(self, app):
-        layout = Layout(app)
+        layout = app.get('layout')
         tree = self.tree = app.get('tree')        
                  
         editor = self.editor = Editor(app)
         f01 = app.get('frame')
-        layout.add_H3(tree, editor, f01, (0.14, 0.5))          
+        colorgrid = ColorGrid(app)
+        layout.add_H4(tree, editor, f01, colorgrid, (0.12, 0.43, 0.8))          
         
         canvas =  CanvasFrame(f01)      
         msg = self.msg = f01.get('msg')  
@@ -424,6 +429,7 @@ class DotView():
         self.root.msg = msg
         self.databox = self.editor.databox
         self.canvas.msg = msg
+        colorgrid.canvas = self.canvas
         
     def get_text(self):
         return self.editor.get_text()

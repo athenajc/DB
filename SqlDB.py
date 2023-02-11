@@ -310,7 +310,7 @@ class SqlDB(object):
         
     def create(self, name, cmd=None):
         if cmd == None:
-            cmd = f"CREATE TABLE IF NOT EXISTS {name} (name string,data string)"
+            cmd = f"CREATE TABLE IF NOT EXISTS {name} (name string, data string)"
         self.execute(cmd)
         self.commit() 
         
@@ -432,6 +432,12 @@ class SqlDB(object):
             return str(lst)
         return str(flatten(lst)[0])     
         
+    def get_cache(self, key):
+        return self.getdata('cache', key)
+        
+    def set_cache(self, key, data):
+        self.setdata('cache', key, data)
+        
     def renamedata(self, table, key, newkey):
         data = self.getdata(table, key)
         self.delete_key(table, key)
@@ -495,6 +501,7 @@ def get_cache(key):
 def set_cache(key, data):
     db = open('cache')
     db.setdata('cache', key, data)
+    
 getcache = get_cache
 setcache = set_cache
     
