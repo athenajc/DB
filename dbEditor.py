@@ -31,10 +31,8 @@ class Editor(tk.Frame):
         self.tree_item = None
         layout = Layout(self)
         panel = Panel(self, height=1, bg='#232323')
-        panel.config(padx = 10, pady=5)  
-        
         layout.add_top(panel, 50)
-        self.add_entry(panel)
+        self.init_panel(panel)
 
         self.text = Text(self, width=120)
         self.text.init_dark_config()
@@ -54,12 +52,15 @@ class Editor(tk.Frame):
         self.entry.set('')
         self.text.set_text('')
         
-    def add_entry(self, panel):
+    def init_panel(self, panel):
+        panel.config(padx = 10, pady=1)  
         entry = panel.add_entry(label='Title Name:  ', width=50)
         entry.label.config(bg='#232323', fg='white')
-        panel.add_button('commit', self.on_commit)               
+                       
         entry.set('test')
         self.entry = entry
+        
+        panel.add_button('commit', self.on_commit)
         panel.add_button('test', self.on_test_cmd)
             
     def set_text(self, text):
@@ -154,6 +155,7 @@ class HeadPanel():
         app = self.app 
         lst = [('New', app.on_new_item), 
                ('Delete', app.on_delete_item), 
+               ('Update', app.on_update_db),  
                ('-', 5),
                ('Copy', app.on_copy),
                ('Import', app.on_import),        
@@ -265,7 +267,7 @@ class CodeFrame(aFrame, SelectDB):
         self.update_all()
         
     def on_create_table(self, event=None): 
-        table_name = aui.askstring('Input Sting', 'New table name?')
+        table_name = self.root.askstring('Input Sting', 'New table name?')
         if table_name == None:
             return
         self.table = self.cdb.create(table_name)
@@ -322,6 +324,9 @@ class CodeFrame(aFrame, SelectDB):
         key = dct.get('text')
         self.table.deldata(key)    
         self.tree.remove_item(item)
+        
+    def on_update_db(self, event=None):
+        DB.update_all()
                 
     def update_item(self, key, item):
         data = (self.table.name, key, item)

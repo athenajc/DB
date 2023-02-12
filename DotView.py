@@ -150,7 +150,7 @@ class Graph():
         self.dct = {}
         self.colors = {}
         self.color = '#444'
-        self.ax = None
+        self.ax = None        
         
     def getdct(self):
         pos = {}
@@ -161,7 +161,7 @@ class Graph():
         
     def getdata(self):
         dct = self.getdct()
-        return pformat(dct, width=50, depth=3)
+        return pformat(dct, width=60, depth=3, compact=True)
         
     def set_obj_color(self, name, color):
         self.colors[name] = color
@@ -196,15 +196,21 @@ class Graph():
         self.canvas.draw_text(x, y, text, anchor='center', color=color, font=(fontsize))
         
     def line(self, p1, p2, tag):
-        p3 = (p1 + p2)/2
-        p1a = (p1 + p3)/2
-        p2a = (p3 + p2)/2
+        v = self.edge_length
+        if v == 100:
+            p1a, p2a = p1, p2
+        else:    
+            p3 = (p1 + p2)/2
+            p1a = (p1*v + p3*(100-v))/100
+            p2a = (p3*(100-v) + p2*v)/100
         x1, y1 = self.canvas_xy(p1a)
         x2, y2 = self.canvas_xy(p2a)
         self.canvas.draw_line(x1, y1, x2, y2)        
                 
     def draw(self, canvas):
         self.canvas = canvas  
+        v = canvas.edge_length
+        self.edge_length = v * 100
         pos = self.pos
         for a in pos : 
             p = np.array(pos.get(a))
@@ -237,13 +243,16 @@ class Graph():
         return dct1
         
     def nx_layout_pos(self, graph):
-        pos = nx.spring_layout(graph, center=(0.5, 0.5), scale=0.45) 
+        layout =  self.canvas.layout
+        pos = layout(graph, center=(0.5, 0.5), scale=0.45) 
         return pos
         
-    def set_data(self, data):
+    def set_data(self, data=None, dct=None):
         graph = self.graph
         graph.clear()
-        dct = self.get_dct(data)
+        if dct == None:
+            dct = self.get_dct(data)
+    
         for a, lst in dct.items():
             graph.add_node(a)
             for b in lst:
@@ -254,16 +263,21 @@ class Graph():
         return graph
         
     def set_dct(self, data):
-        if not '{' in data or not '}' in data or not 'dct' in data:
-            return
+        if not '{' in data or not '}' in data:
+            return            
         try:    
             dct = eval(data)
         except Exception as e:
-            self.msg.puts('Error set_dct', e)
+            self.msg.puts('Error set_dct', e, dct)
             return
-        self.pos = dct.get('pos', {})
-        self.dct = dct.get('dct', {})   
-        self.colors = dct.get('colors', {})        
+        if not 'dct' in dct:
+            self.dct = dct
+            self.pos = {}
+            self.set_data(dct=dct)
+        else:    
+            self.pos = dct.get('pos', {})
+            self.dct = dct.get('dct', {})   
+            self.colors = dct.get('colors', {})        
         
 
         
@@ -275,6 +289,8 @@ class GraphCanvas(ImageCanvas):
         self.root = master.winfo_toplevel()       
         self.app = self.root.app
         self.font = ('Mono', 15)
+        self.edge_length = 1
+        self.layout = nx.spring_layout
         self.config(borderwidth=1, highlightthickness=1)
         #self.create_rectangle(5, 10, 710, 760, outline='#777', fill='#fff', width=3, tag='bg')        
         self.graph = Graph(self)                   
@@ -285,6 +301,12 @@ class GraphCanvas(ImageCanvas):
     def reset(self):
         self.clear()
         self.graph = Graph(self)  
+        
+    def set_layout(self, layout):
+        self.layout = eval('nx.' + layout + '_layout')
+        
+    def set_edge_length(self, value):
+        self.edge_length = value
         
     def set_color(self, color):
         self.color = color
@@ -327,6 +349,7 @@ class GraphCanvas(ImageCanvas):
         self.draw()
         
     def set_dct(self, text):
+        self.graph.msg = self.msg
         self.graph.set_dct(text)
         self.draw()
 
@@ -336,24 +359,37 @@ class CanvasFrame(aFrame):
         super().__init__(master, **kw) 
         self.root = master.winfo_toplevel()       
         self.app = self.root.app
-        items = [('Save Image', self.on_save_image),
-                 ('', ''),
+        
+        items = [('Save', self.on_save_image),
+                 ('', ''),                 
                  ('Gen DCT', self.gen_dct_data),
-                 ('', ''),
-                 ('Update Canvas', self.on_update),
-                 ('Update Editor', self.update_editor_data),
+                 ('', ''),                 
+                 ('<= Text', self.update_editor_data),
+                 ('Update', self.on_update),
                 ]   
         layout = self.get('layout')
         panel = self.get('panel', items=items, height=1)
+        
+        combo = panel.add_combo(' Edge:', text='1', values=['1', '0.9', '0.75', '0.5', '0'], act=self.on_set_length)
+        combo.config(width=5)
+        lst = ['spring', 'spectral', 'spiral', 'multipartite', 'bipartite', 'shell', 
+               'random', 'circular', 'planar', 'rescale', 'kamada_kawai']
+        combo = panel.add_combo(' Layout:', text='spring', values=lst, act=self.on_set_layout)
+        combo.config(width=12)
         layout.add_top(panel, 50)
 
-        panel.config(bg='#353535', relief='sunken')
+        panel.config(relief='raise')
         
         self.canvas = GraphCanvas(self, size=(700, 700))
         self.canvas.place(x=0, y=50, relwidth=1, relheight=1)
-       # panel = ColorGrid(self)
-        #panel.add_colorbar(self.on_select_color)
-        #layout.add_H2(self.canvas, panel, 0.7)
+                 
+    def on_set_length(self, event=None):
+        self.canvas.set_edge_length(eval(event.widget.get()))
+        self.app.update_canvas()
+        
+    def on_set_layout(self, event=None):
+        self.canvas.set_layout(event.widget.get())
+        self.app.update_canvas()
         
     def on_save_image(self, event=None):
         fn = self.root.ask('savefile', ext='img')
@@ -389,8 +425,8 @@ class DotView():
         self.tk = app.tk
         self.init_ui(app)  
         #self.add_cmd_buttons()   
-        db = DB.open('note')
-        self.table = table = db.get('Dot')
+        self.db = DB.open('note')
+        self.table = table = self.db.get('Dot')
         names = table.get('names')
         self.tree.set_list(names)
         self.set_item(names[0])
@@ -401,6 +437,13 @@ class DotView():
         self.set_item(key)
         self.update_canvas()
             
+    def on_switch_table(self, event):
+        name = event.widget.text
+        self.table = table = DB.get_table('note', name)
+        names = table.get('names')
+        self.tree.set_list(names)
+        self.set_item(names[0])
+        
     def set_item(self, name):
         self.editor.reset()
         self.canvas.reset()
@@ -411,12 +454,18 @@ class DotView():
         
     def init_ui(self, app):
         layout = app.get('layout')
-        tree = self.tree = app.get('tree')        
+        panel = app.get('panel')
+        tree = self.tree = panel.get('tree')        
+        
+        panel.add_button('Dot', self.on_switch_table)
+        panel.add_button('Dict', self.on_switch_table)
+
+        tree.place(x=0, y=37, relwidth=1, relheight=0.95)
                  
         editor = self.editor = Editor(app)
         f01 = app.get('frame')
         colorgrid = ColorGrid(app)
-        layout.add_H4(tree, editor, f01, colorgrid, (0.12, 0.43, 0.8))          
+        layout.add_H4(panel, editor, f01, colorgrid, (0.12, 0.43, 0.85))          
         
         canvas =  CanvasFrame(f01)      
         msg = self.msg = f01.get('msg')  
@@ -436,7 +485,9 @@ class DotView():
         
     def update_canvas(self):
         text = self.get_text()
-        if self.name.endswith('.dct'):
+        if '#dict' in text:
+            self.canvas.set_dct(text)
+        elif self.name.endswith('.dct'):
             self.canvas.set_dct(text)
         else:
             self.canvas.set_text(text)
@@ -465,7 +516,7 @@ class DotView():
     def gen_dct_data(self, event=None):
         data = self.canvas.graph.getdata()
         name = self.name + '.dct'
-        self.table.setdata(name, data)  
+        self.db.setdata('Dict', name, data)  
         self.update_tree()      
         
     def update_editor_data(self, event=None):

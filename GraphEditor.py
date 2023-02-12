@@ -3,9 +3,6 @@ import os
 import sys
 import re
 import tkinter as tk
-from tkinter import ttk
-from tkinter import colorchooser
-import aui
 from aui import App, DirGrid, aFrame
 import shapely
 import numpy as np
@@ -342,7 +339,7 @@ class ImageCanvas(tk.Canvas, MoveMode):
         super().__init__(master, **kw)  
         self.size = size
         self.root = master.winfo_toplevel()
-        self.mode = 'text'
+        self.mode = 'move'
         self.text = '紅塵-黃-綠-藍-電子'
         self.font = ('Mono', 20)
         self.fontname = '/home/athena/data/ttf/simhei.ttf'
@@ -591,8 +588,7 @@ class ImageCanvas(tk.Canvas, MoveMode):
                 print([mode])
                 x, y = dct.get('pos', (0, 0))
                 
-                self.draw_text(x, y, mode, color)
-        
+                self.draw_text(x, y, mode, color)        
 
     def add_image(self, filename, tag='img'):
         obj = self.draw_image('image', 0, 0, filename, tag)
@@ -658,7 +654,7 @@ class CanvasFrame(aFrame):
     def __init__(self, master, **kw):
         super().__init__(master, **kw)
         layout = self.get('layout')
-        panel = self.get('panel')
+        panel = self.get('panel', height=1)
         layout.add_top(panel, 50)
         self.add_toolbar(panel)        
         canvas = ImageCanvas(self, bg='#f5f3f3', size=(1024, 768))
@@ -672,12 +668,10 @@ class CanvasFrame(aFrame):
         
     def add_toolbar(self, tb):        
         lst = [('Clear', self.on_clear), ('-', ''),
-               ('Import Image', self.on_import_image), 
                ('Text', self.on_set_mode), 
                ('Line', self.on_set_mode),
                ('Pen',  self.on_set_mode),
                ('Move', self.on_set_mode), 
-               ('Color', self.on_select_color),
                ('-', ''),
                ('To Editor', self.to_editor),
                ('-', ''),
@@ -686,13 +680,6 @@ class CanvasFrame(aFrame):
         self.buttons = tb.add_buttons(lst)   
         self.buttons[0].set_state(True)
         self.label = tb.add_label(text = 'test draw 中文 text')
-
-    def on_import_image(self, event=None):
-        pth = '/link/gallery'
-        file = askopenfilename(title='Open an image:', path=pth, ext='img') 
-        if file == None or len(file) == 0:
-            return
-        self.canvas.add_image(file)
          
     def to_editor(self, event=None):
         self.canvas.to_editor(event)
@@ -702,12 +689,6 @@ class CanvasFrame(aFrame):
         
     def on_clear(self, event=None):
         self.canvas.clear()
-        
-    def on_select_color(self, event=None):        
-        color_code = colorchooser.askcolor(title ="Choose color")
-        c0, c1 = color_code
-        self.label.config(fg=c1)
-        self.canvas.set_color(c1)
         
     def on_set_mode(self, event=None):
         button = event.widget
@@ -762,7 +743,9 @@ class ColorGrid(aFrame):
             break
         
     def on_put_on_canvas(self, event=None):
-        pass
+        objs = self.grid.get_selection()
+        for obj in objs:
+            self.canvas.add_image(obj.filename)
         
     def on_select_color(self, event=None):
         color = event.widget.cget('bg')
@@ -779,7 +762,7 @@ class DrawText(aFrame):
         canvas = CanvasFrame(self) 
         colorbox = ColorGrid(self)
         colorbox.canvas = canvas.canvas
-        #colorbox.add_colorbar(self.on_select_color)
+
         self.layout.add_H3(selector, canvas, colorbox, sep=(0.2, 0.8))
         self.canvas = canvas 
         selector.editor = canvas.editor
