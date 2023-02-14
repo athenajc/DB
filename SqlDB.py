@@ -463,11 +463,17 @@ dbs = {}
 def open(file):
     if not file in dbs:
         dbs[file] = SqlDB(file)
-    return dbs.get(file)    
+    return dbs.get(file)  
+    
+def update_all():
+    for file in dbs:
+        dbs[file] = SqlDB(file)  
 
 def get_table(file, table):
-    sdb = open(file)
-    return sdb.get_table(table)
+    if not file in dbs:
+        dbs[file] = SqlDB(file)
+    db = dbs.get(file)  
+    return db.get_table(table)
     
 def getdata(file, table, key='keys'):
     sdb = open(file)
@@ -538,8 +544,10 @@ def show(fn, table):
 
 def get_path(name):
     table = get_table('cache', 'path')
-    path = table.getdata(name)
-    return path
+    return table.getdata(name)
+    
+def get_filename(path, name):
+    return get_path(path) + os.sep + name
     
 def cache_path(name, value):
     table = get_table('cache', 'path')
