@@ -1,182 +1,45 @@
 #! /usr/bin/python3.8
-import os
-import sys
-import re
-import time
-import tkinter as tk
-import DB
-import aui
-from aui import  App, aFrame, Text, Notebook, Panel, MenuBar, Layout
+import os, sys, re
+from aui import  aFrame, Panel
 from random import Random
 from pprint import pformat
-
-def check_textlen(text, n):
-    for s in text.splitlines():
-        if len(s) > n:
-            return True
-    return False
-    
-def test_text(app, text):
-    filename = '/home/athena/tmp/tmp.py'
-    from fileio import fwrite
-    fwrite(filename, text)
-    from aui import RunServer    
-    app.server = RunServer(app, filename)  
-
-    
-class Editor(tk.Frame):
-    def __init__(self, master, **kw):       
-        super().__init__(master, **kw)
-        self.config(padx=10)
-        self.tree_item = None
-        layout = Layout(self)
-        panel = Panel(self, height=1, bg='#232323')
-        layout.add_top(panel, 50)
-        self.init_panel(panel)
-
-        self.text = Text(self, width=120)
-        self.text.init_dark_config()
-        #self.add(self.text)
-        #self.text.pack(fill='both', expand=True)
-        layout.add_box(self.text)
-        self.tag_config = self.text.tag_config
-        self.table = None
-        self.db_key = 'temp'        
-        self.text.add_menu_cmd('Set Nane', self.on_setname)   
+import DB       
         
-    def add(self, obj):
-        obj.pack(fill='x')
-        
-    def reset(self):
-        self.tree_item = ''
-        self.entry.set('')
-        self.text.set_text('')
-        
-    def init_panel(self, panel):
-        panel.config(padx = 10, pady=1)  
-        entry = panel.add_entry(label='Title Name:  ', width=50)
-        entry.label.config(bg='#232323', fg='white')
-                       
-        entry.set('test')
-        self.entry = entry
-        
-        panel.add_button('commit', self.on_commit)
-        panel.add_button('test', self.on_test_cmd)
-            
-    def set_text(self, text):
-        text = text.strip()
-        if len(text) == 0:
-            self.text.set_text('')
-            return
-            
-        if text[0] in ['[', '{']:
-            if check_textlen(text, 200):
-               text = text.replace(', ', ',    \n')
-        else:
-            ln = text.count('\n') 
-            n = len(text)
-            if ln < 3 and n > 200:
-                text = pformat(text, width=200)
-        self.text.set_text(text)
-        
-    def set_item(self, table, key, item):        
-        self.table = table
-        self.db_key = key
-        self.tree_item = item
-        self.entry.set(key)
-        res = self.table.getdata(key)
-        if res == None:
-            res = 'None'
-        text = str(res)
-        self.set_text(text)
-    
-    def get_title(self, text):
-        for s in re.findall('((?<=class)\s+\w+)|((?<=def)\s+\w+)|([a-zA-Z]\w+)', text):
-            return s
-        return ''
-        
-    def get_data(self):
-        name = self.entry.get()
-        text = self.text.get_text()
-        return name, text
-        
-    def on_savefile(self, event=None):        
-        text = self.text.get_text()
-        self.table.setdata(self.db_key, text)        
-        
-    def on_new(self, event=None):
-        self.master.event_generate("<<NewItem>>")
-        
-    def on_commit(self, event=None):
-        self.master.event_generate("<<CommitItem>>")
-        
-    def new_item(self):    
-        #key = time.strftime("%Y%m%d_%H%M%S") 
-        self.text.set_text('')
-        self.entry.set('')
-        self.db_key = ''
-        self.focus()        
-        return ''
-           
-    def on_setname(self, event=None):
-        newkey = self.text.get_text('sel')
-        if len(newkey) < 2:
-            return        
-        self.table.renamedata(self.db_key, newkey)
-        self.db_key = newkey
-        self.entry.set(newkey)
-        self.master.setvar('<<RenameItem>>', (self.tree_item, newkey))
-        self.master.event_generate('<<RenameItem>>')  
-        
-    def on_test_cmd(self, arg):        
-        text = self.text.get_text()  
-        self.puts = self.msg.puts    
-        self.msg.clear_all()
-        test_text(self, text)
-        
-        
-class HeadPanel():
-    def __init__(self, app, bg=None):
-        self.app = app
-        frame = app.top
+class HeadPanel(Panel):
+    def __init__(self, master, bg=None):
+        super().__init__(master, bg=bg, height=1)
+        self.app = master.app
         if bg == None:
-            bg = frame.cget('bg')
+            bg = master.cget('bg')
         self.bg = bg
         
-        self.font = ('Mono', 15)
-        self.bold = ('Mono', 15, 'bold')
-        pn = Panel(frame, bg=bg)
-        self.tabs = self.add_db_buttons(pn) 
-        self.textvar = self.add_textlabel(pn)                
-        self.buttons = self.add_buttons2(pn)        
-        pn.pack(fill='both', expand=True, side='top') 
+        self.font = ('Mono', 12)
+        self.bold = ('Mono', 12, 'bold')
+        
+        self.tabs = self.add_db_buttons(self) 
+        self.textvar = self.add_textlabel(self)                
+        self.buttons = self.add_buttons2(self)                
 
     def add_buttons2(self, pn): 
         app = self.app 
-        lst = [('New', app.on_new_item), 
-               ('Delete', app.on_delete_item), 
-               ('Update', app.on_update_db),  
-               ('-', 5),
-               ('Copy', app.on_copy),
+        lst = [('Update', app.on_update_db),  
                ('Import', app.on_import),        
                ]  
         buttons = pn.add_buttons(lst)     
         return buttons
                       
     def add_db_buttons(self, pn):
-        pn.add_sep()
         lst = []
         for s in ['code', 'cache', 'file', 'note']:
             button = pn.add_button(s, self.app.on_select_db)
             button.config(font=self.font, background='#999')
             lst.append(button)        
-        lst[0].set_state(True)
-        pn.add_sep()
+        lst[0].set_state(True)       
         return lst        
         
     def add_textlabel(self, pn):
         label = pn.add_textvar()
-        label.config(relief='sunken', height=2, bg='#aaa', font=('Serif', 10))
+        label.config(relief='sunken', height=1, bg='#aaa', font=('Serif', 10))
         return label.textvar
         
     def set_db(self, name):
@@ -192,20 +55,21 @@ class SelectDB():
         name = event.widget.name   
         self.select_db(name)
         
-    def set_db(self, name):
+    def set_db(self, name, table_name=None):
         self.name = name
-        self.cdb = DB.open(name)
-        names = self.cdb.get('tables')
+        self.db = DB.open(name)
+        names = self.db.get('tables')
         if names == [] or names == None:
             return
-        self.set_table_menu()    
-        #self.msg.puts('name, names', name, names)
-        name = Random().choice(names)
-        self.switch_table(name)    
+        if table_name == None:
+            table_name = Random().choice(names)    
+        self.panel.set_db(name)    
+        self.set_table_menu(table_name)    
+        self.switch_table(table_name)  
                          
         
 class CodeFrame(aFrame, SelectDB):     
-    def __init__(self, master, name='code'):       
+    def __init__(self, master, name='code', table=None):       
         super().__init__(master)
         self.size = master.size
         self.app = self
@@ -217,26 +81,25 @@ class CodeFrame(aFrame, SelectDB):
         self.config(borderwidth=3)
         
         self.root = self.winfo_toplevel()
-        self.cdb = DB.open(name)
+        self.db = DB.open(name)
         self.name = name
-        tables = self.cdb.get('tables')
+        tables = self.db.get('tables')
         self.table = None
         self.vars = {'history':[]}
         self.data = []
         self.tree_item = ''
          
         self.init_ui()      
-        self.panel.set_db(name)
-        if tables != None and len(tables) > 1: 
-           self.switch_table(tables[0]) 
+        self.set_db(name, table)
+        self.update_all()
         self.editor.bind_all('<<RenameItem>>', self.on_rename_item)    
   
         self.editor.bind_all('<<NewItem>>', self.on_new_item) 
         self.editor.bind_all('<<DeleteItem>>', self.on_delete_item)    
         self.editor.bind_all('<<CommitItem>>', self.on_commit)  
           
-    def set_table_menu(self):
-        names = self.cdb.get('tables')
+    def set_table_menu(self, tablename=None):
+        names = self.db.get('tables')
         self.menubar.reset()   
         self.menubar.base.config(pady=3)    
         lst = []
@@ -261,22 +124,24 @@ class CodeFrame(aFrame, SelectDB):
         
     def switch_table(self, table_name='example'): 
         table_name = str(table_name)   
-        self.table = self.cdb.get_table(table_name)   
+        self.table = self.db.get_table(table_name)   
         for btn in self.buttons:
             btn.set_state(btn.name == table_name)   
-        self.update_all()
+        #self.update_all()
         
     def on_create_table(self, event=None): 
         table_name = self.root.askstring('Input Sting', 'New table name?')
         if table_name == None:
             return
-        self.table = self.cdb.create(table_name)
+        self.table = self.db.create(table_name)
         self.set_db(self.name)
         self.switch_table(table_name)  
+        self.update_all()
             
     def on_select_table(self, event=None):        
         table_name = str(event.widget.name)            
-        self.switch_table(table_name)       
+        self.switch_table(table_name)    
+        self.update_all()   
         
     def on_new_item(self, event=None):
         self.editor.new_item()
@@ -354,30 +219,42 @@ class CodeFrame(aFrame, SelectDB):
         self.msg.puts('rename', self.tree.item(item))
         self.tree.set_node_data(item, newkey)     
         
+    def get_db_table(self):
+        return self.table
+        
+    def update_tree(self):
+        names = self.table.getnames()        
+        self.tree.set_list(names)
+        
     def init_ui(self):
-        layout = Layout(self)
-        self.top = tk.Frame(self)
-        layout.add_top(self.top, 52)  
+        frame = self.get('frame')
+        frame.app = self
+        layout = frame.get('layout')
+        self.panel = HeadPanel(frame, bg=self.cget('bg'))  
+        layout.add_top(self.panel, 45)  
         
-        self.left = tk.Frame(self)
-        layout.add_left(self.left, 100)
+        self.menubar = Panel(frame, style='v', size=(100, 1080), width=12)
+        layout.add_left(self.menubar, 100)     
+        tree = self.tree = frame.get('tree')   
+        layout.add_box(tree)
         
-        self.panel = HeadPanel(self, bg=self.cget('bg'))  
-        editor = self.editor = Editor(self)          
-        msg = self.msg = self.get('msg')    
-        tree = self.tree = self.get('tree')
-        layout.add_HV(tree, editor, msg, sep=(0.25, 0.7))
+        from aui.dbEditorFrame import dbEditorFrame
+        editor = self.editor = dbEditorFrame(self, databox='msg')      
+        editor.entry.config(width=42)    
+        editor.panel.add_button('Copy', self.on_copy)
+        editor.app = self
+        editor.get_db_table = self.get_db_table
+        
+        self.layout = self.get('layout')
+        self.layout.add_H2(frame, editor, sep=0.25)
         tree.click_select = 'click'   
-        tree.msg = self.msg
+        tree.msg = self.msg = editor.msg
         tree.bind('<ButtonRelease-1>', self.on_select) 
-        editor.msg = msg
-        msg.textbox = editor.text
-        self.menubar = Panel(self.left, style='v', size=(100, 1080)) 
-        self.menubar.pack(side='top', fill='x', expand=False)                
-        self.set_table_menu()
+
          
-       
+
 def test():
+    from aui import App       
     app = App()    
     frame = aui.TopFrame()    
     panel = frame.add('panel')
@@ -386,18 +263,18 @@ def test():
     frame1.pack(fill='both', expand=True)   
     app.mainloop()     
     
-def run(name):
+def run(name, table=None):
     if len(sys.argv) > 1:
         print(sys.argv)
         name = sys.argv[1] 
-    
-    app = App('Sample SQL Editor', size=(1300, 900))    
-    frame = CodeFrame(app, name)
+    from aui import App       
+    app = App('Sample SQL Editor', size=(1600, 1000))    
+    frame = CodeFrame(app, name, table)
     frame.pack(fill='both', expand=True)
     app.mainloop()   
             
 if __name__ == '__main__':   
-    run('code')
+    run('note', 'note')
 
 
         

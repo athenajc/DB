@@ -1,147 +1,15 @@
 import os
 import re
 import sys
-import aui
-from tkinter import ttk
-from aui import App, aFrame, FigureTk, DirGrid
-#from aui import Text, Layout, Panel
+from aui import App, aFrame
+from aui.FigureCanvas import FigureTk
 import DB
 import tk, nx, plt
 import numpy as np
 from pprint import pprint, pformat
-from GraphEditor import ImageCanvas, ColorGrid
-        
-class Editor(aFrame):
-    def __init__(self, master, **kw):       
-        super().__init__(master, **kw)
-        root = master.winfo_toplevel()
-        self.app = root.app
-        layout = self.get('layout')
-        self.tree_item = None
-        panel = self.get('panel', bg='#232323', height=1)
-        layout.add_top(panel, 50)
-        self.add_entry(panel)
-         
-        self.text = self.get('text', width=120)
-        self.text.init_dark_config()        
-        
-        self.databox = self.get('text', width=120)
-        layout.add_V2(self.text, self.databox, 0.6)
 
-        self.tag_config = self.text.tag_config
-        self.table = None
-        self.db_key = 'temp'        
-        self.text.add_menu_cmd('Set Nane', self.on_setname)   
-        
-    def set_name(self, name):
-        self.name = name
-        self.entry.set(name)
-        
-    def reset(self, event=None):
-        self.tree_item = ''
-        self.entry.set('')
-        self.text.set_text('')           
-        
-    def add_entry(self, panel):        
-        panel.add_button('New', self.reset)      
-        panel.add_button('Delete', self.on_delete)      
-        entry = panel.add_entry(label=' Name: ', width=16)
-        panel.add_button('commit', self.on_commit) 
-        panel.add_button('Rename', self.on_rename)
-        self.entry = entry        
-             
-    def get_text(self):
-        return self.text.get_text()
-        
-    def set_text(self, text):
-        text = text.strip()
-        if len(text) == 0:
-            self.text.set_text('')
-            return
-        ln = text.count('\n') 
-        n = len(text)    
-        if ln < 3 and n > 200:
-            text = pformat(text, width=50, depth=3)
-        self.text.set_text(text)
-        self.databox.delete('1.0', 'end')
-        
-    def update_data(self, dct, objs):  
-        if objs == []:
-            return   
-        box = self.databox    
-        pretext = box.get_text()
-      
-        if objs[0][0] in pretext:       
-            start = box.search('pos', '1.0')
-            if start == '':
-                return
-            for name, xy in objs:
-                pos = box.search(name, start)
-                if pos == '':
-                    continue
-                p1, p2 = box.index(pos + ' linestart'), box.index(pos + ' lineend')
-                line = box.get(p1, p2)
-                a, b = line.split('(')
-                line1 = a + str(xy) + ','
-                box.replace(p1, p2, line1)
-        else:
-           text = pformat(dct.get('pos'), width=50, depth=3)
-           self.databox.delete('1.0', 'end')
-           self.databox.insert('1.0', text)
-        
-    def set_item(self, table, key, item):        
-        self.table = table
-        self.db_key = key
-        self.tree_item = item
-        self.entry.set(key)
-        res = self.table.getdata(key)
-        if len(res) == 0:
-            res = 'empty'
-        text = res
-        self.set_text(text)    
-        
-    def get_data(self):
-        name = self.entry.get()
-        text = self.text.get_text()
-        return name, text
-        
-    def on_savefile(self, event=None):        
-        text = self.text.get_text()
-        self.table.setdata(self.db_key, text)        
-        
-    def on_new(self, event=None):
-        self.app.on_new(event)
-        
-    def on_delete(self, event=None):
-        table = self.app.table
-        name = self.entry.get() 
-        table.deldata(name)
-        self.app.update_tree()
-        
-    def on_commit(self, event=None):
-        self.app.commit(event)
-        
-    def on_rename(self, event=None):
-        self.app.rename(self.entry.get())   
-        
-    def new_item(self):    
-        #key = time.strftime("%Y%m%d_%H%M%S") 
-        self.text.set_text('')
-        self.entry.set('')
-        self.db_key = ''
-        self.focus()        
-        return ''
-           
-    def on_setname(self, event=None):
-        newkey = self.text.get_text('sel')
-        if len(newkey) < 2:
-            return        
-        self.table.renamedata(self.db_key, newkey)
-        self.db_key = newkey
-        self.entry.set(newkey)
-        self.app.setvar('<<RenameItem>>', (self.tree_item, newkey))
-        self.app.event_generate('<<RenameItem>>')  
-
+from aui.dbEditorFrame import dbEditorFrame        
+from aui.ImageCanvas import ImageCanvas, ColorGrid
  
 class Graph():
     def __init__(self, canvas):
@@ -372,8 +240,8 @@ class CanvasFrame(aFrame):
         
         combo = panel.add_combo(' Edge:', text='1', values=['1', '0.9', '0.75', '0.5', '0'], act=self.on_set_length)
         combo.config(width=5)
-        lst = ['spring', 'spectral', 'spiral', 'multipartite', 'bipartite', 'shell', 
-               'random', 'circular', 'planar', 'rescale', 'kamada_kawai']
+        lst = ['spring', 'circular', 'spiral', 'planar', 'random', 'spectral', 
+               'multipartite', 'bipartite', 'shell', 'rescale', 'kamada_kawai']
         combo = panel.add_combo(' Layout:', text='spring', values=lst, act=self.on_set_layout)
         combo.config(width=12)
         layout.add_top(panel, 50)
@@ -462,7 +330,7 @@ class DotView():
 
         tree.place(x=0, y=37, relwidth=1, relheight=0.95)
                  
-        editor = self.editor = Editor(app)
+        editor = self.editor = dbEditorFrame(app, databox=True)
         f01 = app.get('frame')
         colorgrid = ColorGrid(app)
         layout.add_H4(panel, editor, f01, colorgrid, (0.12, 0.43, 0.85))          
